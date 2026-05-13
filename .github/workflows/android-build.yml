@@ -22,8 +22,13 @@ jobs:
 
     - run: flutter create --platforms=android .
 
-    # Force SDK 24 for FFmpeg compatibility during CI build
-    - run: sed -i 's/flutter.minSdkVersion/24/g' android/app/build.gradle
+    # Force SDK 24 for FFmpeg - Supports both Groovy and Kotlin DSL formats
+    - run: |
+        if [ -f android/app/build.gradle ]; then
+          sed -i 's/flutter.minSdkVersion/24/g' android/app/build.gradle
+        elif [ -f android/app/build.gradle.kts ]; then
+          sed -i 's/flutter.minSdkVersion/24/g' android/app/build.gradle.kts
+        fi
 
     - run: flutter pub get
 
