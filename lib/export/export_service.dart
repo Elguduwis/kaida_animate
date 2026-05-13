@@ -2,8 +2,8 @@ import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:ffmpeg_kit_flutter_min_gpl/ffmpeg_kit.dart';
-import 'package:ffmpeg_kit_flutter_min_gpl/return_code.dart';
+import 'package:ffmpeg_kit_flutter/ffmpeg_kit.dart';
+import 'package:ffmpeg_kit_flutter/return_code.dart';
 import '../models/canvas_object.dart';
 
 class ExportService {
@@ -22,32 +22,27 @@ class ExportService {
       await framesDir.create();
 
       const int fps = 30;
-      // Calculate total duration based on the last object's end time
       double totalDuration = 0;
       for (var obj in objects) {
         final endTime = obj.startTime.inMilliseconds / 1000.0 + obj.duration.inMilliseconds / 1000.0;
         if (endTime > totalDuration) totalDuration = endTime;
       }
       
-      // Add 1 second padding at the end
       totalDuration += 1.0;
       final int totalFrames = (totalDuration * fps).toInt();
 
-      // Step 1: Headless Frame Generation
       for (int i = 0; i < totalFrames; i++) {
         double currentTime = i / fps;
-        onProgress((i / totalFrames) * 0.5); // First 50% of progress
+        onProgress((i / totalFrames) * 0.5);
 
         final recorder = ui.PictureRecorder();
         final canvas = ui.Canvas(recorder);
 
-        // Draw Background
         canvas.drawRect(
           Rect.fromLTWH(0, 0, videoSize.width, videoSize.height),
           Paint()..color = Colors.white,
         );
 
-        // Draw Objects state at 'currentTime'
         for (var obj in objects) {
           double objStart = obj.startTime.inMilliseconds / 1000.0;
           double objDuration = obj.duration.inMilliseconds / 1000.0;
@@ -62,7 +57,7 @@ class ExportService {
               final textSpan = TextSpan(
                 text: obj.data,
                 style: TextStyle(
-                  color: Colors.black.withOpacity(progress), // Fade in
+                  color: Colors.black.withOpacity(progress),
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
                 ),
@@ -102,12 +97,10 @@ class ExportService {
         await frameFile.writeAsBytes(byteData!.buffer.asUint8List());
       }
 
-      // Step 2: FFmpeg Stitching
-      onProgress(0.6); // Indicate start of video encoding
+      onProgress(0.6); 
       
       final outputPath = '${tempDir.path}/kaida_export_${DateTime.now().millisecondsSinceEpoch}.mp4';
       
-      // FFmpeg command: Generate video from sequence of PNGs
       final String command = "-y -framerate $fps -i '${framesDir.path}/frame_%04d.png' -c:v libx264 -pix_fmt yuv420p -preset ultrafast '$outputPath'";
 
       final session = await FFmpegKit.execute(command);
