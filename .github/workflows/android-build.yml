@@ -16,19 +16,41 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    # STRICT ENVIRONMENT LOCK:
-    # Flutter 3.13 natively aligns with our package matrix without errors.
+    # 1. Use latest stable Flutter. This automatically fixes the SDK 34 path_provider error.
     - uses: subosito/flutter-action@v2
       with:
-        flutter-version: '3.13.9'
         channel: 'stable'
 
     - run: flutter create --platforms=android .
 
-    # The official, hack-free way to set minimum SDK for FFmpeg
-    - run: echo "flutter.minSdkVersion=24" >> android/local.properties
-
     - run: flutter pub get
+
+    # 2. THE ARCHITECTURE OVERRIDE
+    # We forcefully intercept the broken plugin request and point it to the stable LTS artifact.
+    - run: |
+        if [ -f android/build.gradle ]; then
+          cat << 'GRADLE_EOF' >> android/build.gradle
+
+          allprojects {
+              configurations.all {
+                  resolutionStrategy {
+                      force 'com.arthenica:ffmpeg-kit-https:5.1.LTS'
+                  }
+              }
+          }
+          GRADLE_EOF
+        elif [ -f android/build.gradle.kts ]; then
+          cat << 'KTS_EOF' >> android/build.gradle.kts
+
+          allprojects {
+              configurations.all {
+                  resolutionStrategy {
+                      force("com.arthenica:ffmpeg-kit-https:5.1.LTS")
+                  }
+              }
+          }
+          KTS_EOF
+        fi
 
     - run: flutter build apk --release
 
