@@ -22,13 +22,7 @@ jobs:
 
     - run: flutter create --platforms=android .
 
-    # 1. Official FFmpeg configuration to bypass the missing 6.0-2 Maven artifact
-    # We force Gradle to pull the stable 6.0 version and use the lightweight min-gpl package.
-    - run: |
-        echo "ffmpegKitPackage=min-gpl" >> android/gradle.properties
-        echo "ffmpegKitVersion=6.0" >> android/gradle.properties
-
-    # 2. Force Android SDK 24 requirement for FFmpeg compatibility (Supports both Gradle DSLs)
+    # Force Android SDK 24 requirement for FFmpeg compatibility
     - run: |
         if [ -f android/app/build.gradle ]; then
           sed -i 's/flutter.minSdkVersion/24/g' android/app/build.gradle
@@ -37,6 +31,12 @@ jobs:
         fi
 
     - run: flutter pub get
+
+    # THE FIX: Inject official overrides directly into local.properties
+    # This forces the plugin to use the stable 6.0 artifact and the min-gpl package.
+    - run: |
+        echo "ffmpegKitPackage=min-gpl" >> android/local.properties
+        echo "ffmpegKitVersion=6.0" >> android/local.properties
 
     - run: flutter build apk --release
 
