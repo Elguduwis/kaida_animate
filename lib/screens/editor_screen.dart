@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/canvas_provider.dart';
 import '../animations/animated_drawing_widget.dart';
+import '../models/canvas_object.dart';
 import 'export_screen.dart';
 
 class EditorScreen extends StatelessWidget {
