@@ -22,21 +22,10 @@ jobs:
 
     - run: flutter create --platforms=android .
 
-    # Force Android SDK 24 requirement for FFmpeg compatibility
-    - run: |
-        if [ -f android/app/build.gradle ]; then
-          sed -i 's/flutter.minSdkVersion/24/g' android/app/build.gradle
-        elif [ -f android/app/build.gradle.kts ]; then
-          sed -i 's/flutter.minSdkVersion/24/g' android/app/build.gradle.kts
-        fi
-
     - run: flutter pub get
 
-    # THE FIX: Inject official overrides directly into local.properties
-    # This forces the plugin to use the stable 6.0 artifact and the min-gpl package.
-    - run: |
-        echo "ffmpegKitPackage=min-gpl" >> android/local.properties
-        echo "ffmpegKitVersion=6.0" >> android/local.properties
+    # The official, hack-free way to set minSdkVersion for FFmpeg in Flutter
+    - run: echo "flutter.minSdkVersion=24" >> android/local.properties
 
     - run: flutter build apk --release
 
