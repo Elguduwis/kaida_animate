@@ -1,65 +1,35 @@
-
 name: KAIDA Animate Android CI
 
-
-
 on:
-
   push:
-
     branches: [ "main", "master" ]
 
-
-
 jobs:
-
   build:
-
     runs-on: ubuntu-latest
 
-
-
     steps:
-
     - uses: actions/checkout@v4
 
-
-
     - uses: actions/setup-java@v4
-
       with:
-
         java-version: '17'
-
         distribution: 'temurin'
 
-
-
     - uses: subosito/flutter-action@v2
-
       with:
-
         channel: 'stable'
-
-
 
     - run: flutter create --platforms=android .
 
-
+    # Force SDK 24 for FFmpeg compatibility during CI build
+    - run: sed -i 's/flutter.minSdkVersion/24/g' android/app/build.gradle
 
     - run: flutter pub get
 
-
-
     - run: flutter build apk --release
 
-
-
     - uses: actions/upload-artifact@v4
-
       with:
-
         name: KAIDA-Animate-APK
-
         path: build/app/outputs/flutter-apk/app-release.apk
-

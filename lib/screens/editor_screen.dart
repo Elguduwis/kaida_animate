@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/canvas_provider.dart';
 import '../animations/animated_drawing_widget.dart';
+import 'export_screen.dart';
 
 class EditorScreen extends StatelessWidget {
   const EditorScreen({super.key});
@@ -21,10 +22,16 @@ class EditorScreen extends StatelessWidget {
             onPressed: () => context.read<CanvasProvider>().deleteSelectedObject(),
           ),
           IconButton(
-            icon: const Icon(Icons.save),
+            icon: const Icon(Icons.upload_file),
+            tooltip: 'Export MP4',
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Project saved locally.'), backgroundColor: Color(0xFF800080)),
+              // Pause playback before exporting
+              if (context.read<CanvasProvider>().isPlaying) {
+                context.read<CanvasProvider>().togglePlay();
+              }
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ExportScreen()),
               );
             },
           ),
@@ -32,7 +39,6 @@ class EditorScreen extends StatelessWidget {
       ),
       body: Column(
         children: [
-          // Toolbar Container (Glassmorphism inspired clean UI)
           Container(
             padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
             decoration: BoxDecoration(
@@ -51,11 +57,7 @@ class EditorScreen extends StatelessWidget {
                   context.read<CanvasProvider>().addDrawingObject();
                 }),
                 _buildToolBtn(context, Icons.image, 'Image', () {}),
-                Container(
-                  width: 1,
-                  height: 30,
-                  color: Colors.grey.shade300,
-                ),
+                Container(width: 1, height: 30, color: Colors.grey.shade300),
                 FloatingActionButton.small(
                   backgroundColor: isPlaying ? Colors.redAccent : const Color(0xFF800080),
                   foregroundColor: Colors.white,
@@ -66,7 +68,6 @@ class EditorScreen extends StatelessWidget {
               ],
             ),
           ),
-          // Infinite Canvas Area
           Expanded(
             child: GestureDetector(
               onTap: () => context.read<CanvasProvider>().selectObject(null),
@@ -101,10 +102,7 @@ class EditorScreen extends StatelessWidget {
                                   ),
                                 ),
                                 padding: const EdgeInsets.all(4),
-                                child: AnimatedDrawingWidget(
-                                  object: obj,
-                                  isPlaying: isPlaying,
-                                ),
+                                child: AnimatedDrawingWidget(object: obj, isPlaying: isPlaying),
                               ),
                             ),
                           );
@@ -116,7 +114,6 @@ class EditorScreen extends StatelessWidget {
               ),
             ),
           ),
-          // Basic Timeline UI (Foundation for Phase 3)
           Container(
             height: 90,
             decoration: const BoxDecoration(
@@ -151,11 +148,7 @@ class EditorScreen extends StatelessWidget {
                             alignment: Alignment.center,
                             child: Row(
                               children: [
-                                Icon(
-                                  obj.type == ObjectType.text ? Icons.title : Icons.draw,
-                                  size: 16,
-                                  color: const Color(0xFF800080),
-                                ),
+                                Icon(obj.type == ObjectType.text ? Icons.title : Icons.draw, size: 16, color: const Color(0xFF800080)),
                                 const SizedBox(width: 8),
                                 Text('${index + 1} (${obj.duration.inSeconds}s)', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                               ],

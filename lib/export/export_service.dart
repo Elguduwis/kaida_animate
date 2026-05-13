@@ -1,0 +1,128 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:ffmpeg_kit_flutter_min_gpl/ffmpeg_kit.dart';
+import 'package:ffmpeg_kit_flutter_min_gpl/return_code.dart';
+import '../models/canvas_object.dart';
+
+class ExportService {
+  Future<String?> exportToMp4({
+    required List<CanvasObject> objects,
+    required Size videoSize,
+    required Function(double) onProgress,
+  }) async {
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final framesDir = Directory('${tempDir.path}/frames');
+      
+      if (await framesDir.exists()) {
+        await framesDir.delete(recursive: true);
+      }
+      await framesDir.create();
+
+      const int fps = 30;
+      // Calculate total duration based on the last object's end time
+      double totalDuration = 0;
+      for (var obj in objects) {
+        final endTime = obj.startTime.inMilliseconds / 1000.0 + obj.duration.inMilliseconds / 1000.0;
+        if (endTime > totalDuration) totalDuration = endTime;
+      }
+      
+      // Add 1 second padding at the end
+      totalDuration += 1.0;
+      final int totalFrames = (totalDuration * fps).toInt();
+
+      // Step 1: Headless Frame Generation
+      for (int i = 0; i < totalFrames; i++) {
+        double currentTime = i / fps;
+        onProgress((i / totalFrames) * 0.5); // First 50% of progress
+
+        final recorder = ui.PictureRecorder();
+        final canvas = ui.Canvas(recorder);
+
+        // Draw Background
+        canvas.drawRect(
+          Rect.fromLTWH(0, 0, videoSize.width, videoSize.height),
+          Paint()..color = Colors.white,
+        );
+
+        // Draw Objects state at 'currentTime'
+        for (var obj in objects) {
+          double objStart = obj.startTime.inMilliseconds / 1000.0;
+          double objDuration = obj.duration.inMilliseconds / 1000.0;
+          
+          if (currentTime >= objStart) {
+            double progress = ((currentTime - objStart) / objDuration).clamp(0.0, 1.0);
+            
+            canvas.save();
+            canvas.translate(obj.x, obj.y);
+
+            if (obj.type == ObjectType.text) {
+              final textSpan = TextSpan(
+                text: obj.data,
+                style: TextStyle(
+                  color: Colors.black.withOpacity(progress), // Fade in
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                ),
+              );
+              final textPainter = TextPainter(
+                text: textSpan,
+                textDirection: ui.TextDirection.ltr,
+              );
+              textPainter.layout();
+              textPainter.paint(canvas, Offset.zero);
+            } 
+            else if (obj.type == ObjectType.drawing && obj.pathData != null) {
+              final paint = Paint()
+                ..color = Colors.black
+                ..strokeWidth = 4.0
+                ..style = PaintingStyle.stroke
+                ..strokeCap = StrokeCap.round;
+
+              final partialPath = Path();
+              for (ui.PathMetric metric in obj.pathData!.computeMetrics()) {
+                partialPath.addPath(
+                  metric.extractPath(0.0, metric.length * progress),
+                  Offset.zero,
+                );
+              }
+              canvas.drawPath(partialPath, paint);
+            }
+            canvas.restore();
+          }
+        }
+
+        final picture = recorder.endRecording();
+        final image = await picture.toImage(videoSize.width.toInt(), videoSize.height.toInt());
+        final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+        
+        final frameFile = File('${framesDir.path}/frame_${i.toString().padLeft(4, '0')}.png');
+        await frameFile.writeAsBytes(byteData!.buffer.asUint8List());
+      }
+
+      // Step 2: FFmpeg Stitching
+      onProgress(0.6); // Indicate start of video encoding
+      
+      final outputPath = '${tempDir.path}/kaida_export_${DateTime.now().millisecondsSinceEpoch}.mp4';
+      
+      // FFmpeg command: Generate video from sequence of PNGs
+      final String command = "-y -framerate $fps -i '${framesDir.path}/frame_%04d.png' -c:v libx264 -pix_fmt yuv420p -preset ultrafast '$outputPath'";
+
+      final session = await FFmpegKit.execute(command);
+      final returnCode = await session.getReturnCode();
+
+      if (ReturnCode.isSuccess(returnCode)) {
+        onProgress(1.0);
+        return outputPath;
+      } else {
+        debugPrint("FFmpeg export failed.");
+        return null;
+      }
+    } catch (e) {
+      debugPrint("Export Error: $e");
+      return null;
+    }
+  }
+}
