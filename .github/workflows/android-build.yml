@@ -16,7 +16,6 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    # 1. Use latest stable Flutter. This automatically fixes the SDK 34 path_provider error.
     - uses: subosito/flutter-action@v2
       with:
         channel: 'stable'
@@ -25,31 +24,26 @@ jobs:
 
     - run: flutter pub get
 
-    # 2. THE ARCHITECTURE OVERRIDE
-    # We forcefully intercept the broken plugin request and point it to the stable LTS artifact.
+    # THE DEFINITIVE OVERRIDE: Using safe echo appends to avoid Bash indentation errors
     - run: |
         if [ -f android/build.gradle ]; then
-          cat << 'GRADLE_EOF' >> android/build.gradle
-
-          allprojects {
-              configurations.all {
-                  resolutionStrategy {
-                      force 'com.arthenica:ffmpeg-kit-https:5.1.LTS'
-                  }
-              }
-          }
-          GRADLE_EOF
+          echo "" >> android/build.gradle
+          echo "allprojects {" >> android/build.gradle
+          echo "    configurations.all {" >> android/build.gradle
+          echo "        resolutionStrategy {" >> android/build.gradle
+          echo "            force 'com.arthenica:ffmpeg-kit-https:5.1.LTS'" >> android/build.gradle
+          echo "        }" >> android/build.gradle
+          echo "    }" >> android/build.gradle
+          echo "}" >> android/build.gradle
         elif [ -f android/build.gradle.kts ]; then
-          cat << 'KTS_EOF' >> android/build.gradle.kts
-
-          allprojects {
-              configurations.all {
-                  resolutionStrategy {
-                      force("com.arthenica:ffmpeg-kit-https:5.1.LTS")
-                  }
-              }
-          }
-          KTS_EOF
+          echo "" >> android/build.gradle.kts
+          echo "allprojects {" >> android/build.gradle.kts
+          echo "    configurations.all {" >> android/build.gradle.kts
+          echo "        resolutionStrategy {" >> android/build.gradle.kts
+          echo "            force(\"com.arthenica:ffmpeg-kit-https:5.1.LTS\")" >> android/build.gradle.kts
+          echo "        }" >> android/build.gradle.kts
+          echo "    }" >> android/build.gradle.kts
+          echo "}" >> android/build.gradle.kts
         fi
 
     - run: flutter build apk --release
