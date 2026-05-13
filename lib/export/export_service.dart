@@ -25,13 +25,16 @@ class ExportService {
       totalDuration += 1.0; 
       final int totalFrames = (totalDuration * fps).toInt();
 
-      // FIX: Added the missing required profileLevel parameter
+      // FIX: Added the explicitly required audio configuration parameters
       await FlutterQuickVideoEncoder.setup(
         width: videoSize.width.toInt(),
         height: videoSize.height.toInt(),
         fps: fps,
         videoBitrate: 2500000,
         profileLevel: ProfileLevel.any,
+        audioBitrate: 64000,     // Required by API
+        audioChannels: 2,        // Required by API (Stereo)
+        sampleRate: 44100,       // Required by API (Standard CD audio)
         filepath: outputPath,
       );
 
