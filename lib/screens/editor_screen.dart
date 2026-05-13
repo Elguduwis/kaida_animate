@@ -13,74 +13,63 @@ class EditorScreen extends StatelessWidget {
     final isPlaying = context.watch<CanvasProvider>().isPlaying;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: const Color(0xFFF0F0F0),
       appBar: AppBar(
-        title: const Text('Workspace', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('KAIDA Editor', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        backgroundColor: const Color(0xFF800080),
+        foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.delete),
-            tooltip: 'Delete Selected',
-            onPressed: () => context.read<CanvasProvider>().deleteSelectedObject(),
-          ),
-          IconButton(
             icon: const Icon(Icons.upload_file),
-            tooltip: 'Export MP4',
+            tooltip: 'Export Video',
             onPressed: () {
-              // Pause playback before exporting
               if (context.read<CanvasProvider>().isPlaying) {
                 context.read<CanvasProvider>().togglePlay();
               }
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const ExportScreen()),
-              );
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const ExportScreen()));
             },
           ),
         ],
       ),
       body: Column(
         children: [
+          // Toolbar Container
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))
-              ],
-            ),
+            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
+            color: Colors.white,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildToolBtn(context, Icons.title, 'Text', () {
-                  context.read<CanvasProvider>().addTextObject('Tap to Edit');
-                }),
-                _buildToolBtn(context, Icons.draw, 'Draw Path', () {
-                  context.read<CanvasProvider>().addDrawingObject();
-                }),
-                _buildToolBtn(context, Icons.image, 'Image', () {}),
+                _buildToolBtn(context, Icons.text_fields, 'Text', () => context.read<CanvasProvider>().addTextObject('New Text')),
+                _buildToolBtn(context, Icons.gesture, 'Draw', () => context.read<CanvasProvider>().addDrawingObject()),
                 Container(width: 1, height: 30, color: Colors.grey.shade300),
-                FloatingActionButton.small(
+                FloatingActionButton.extended(
                   backgroundColor: isPlaying ? Colors.redAccent : const Color(0xFF800080),
                   foregroundColor: Colors.white,
                   elevation: 0,
+                  icon: Icon(isPlaying ? Icons.stop : Icons.play_arrow),
+                  label: Text(isPlaying ? "Stop" : "Preview"),
                   onPressed: () => context.read<CanvasProvider>().togglePlay(),
-                  child: Icon(isPlaying ? Icons.stop : Icons.play_arrow),
                 ),
               ],
             ),
           ),
+          
+          // The Main Canvas View (Upper Half)
           Expanded(
+            flex: 6,
             child: GestureDetector(
               onTap: () => context.read<CanvasProvider>().selectObject(null),
               child: Container(
-                margin: const EdgeInsets.all(16.0),
+                margin: const EdgeInsets.all(12.0),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(12.0),
-                  boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 15)],
+                  borderRadius: BorderRadius.circular(8.0),
+                  boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 8)],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12.0),
+                  borderRadius: BorderRadius.circular(8.0),
                   child: Consumer<CanvasProvider>(
                     builder: (context, provider, child) {
                       return Stack(
@@ -100,9 +89,9 @@ class EditorScreen extends StatelessWidget {
                                   border: Border.all(
                                     color: isSelected && !isPlaying ? const Color(0xFF800080) : Colors.transparent,
                                     width: 2,
+                                    strokeAlign: BorderSide.strokeAlignOutside,
                                   ),
                                 ),
-                                padding: const EdgeInsets.all(4),
                                 child: AnimatedDrawingWidget(object: obj, isPlaying: isPlaying),
                               ),
                             ),
@@ -115,52 +104,92 @@ class EditorScreen extends StatelessWidget {
               ),
             ),
           ),
-          Container(
-            height: 90,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              border: Border(top: BorderSide(color: Colors.black12)),
-            ),
-            padding: const EdgeInsets.all(8.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Timeline Sequence', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
-                const SizedBox(height: 8),
-                Expanded(
-                  child: Consumer<CanvasProvider>(
-                    builder: (context, provider, child) {
-                      if (provider.objects.isEmpty) {
-                        return const Center(child: Text('Add objects to see timeline', style: TextStyle(color: Colors.grey, fontSize: 12)));
-                      }
-                      return ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: provider.objects.length,
-                        itemBuilder: (context, index) {
-                          final obj = provider.objects[index];
-                          return Container(
-                            margin: const EdgeInsets.only(right: 8.0),
-                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF800080).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8.0),
-                              border: Border.all(color: const Color(0xFF800080).withOpacity(0.3)),
-                            ),
-                            alignment: Alignment.center,
-                            child: Row(
-                              children: [
-                                Icon(obj.type == ObjectType.text ? Icons.title : Icons.draw, size: 16, color: const Color(0xFF800080)),
-                                const SizedBox(width: 8),
-                                Text('${index + 1} (${obj.duration.inSeconds}s)', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                          );
-                        },
-                      );
-                    },
+
+          // The Timeline & Layer Manager (Lower Half)
+          Expanded(
+            flex: 4,
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                border: Border(top: BorderSide(color: Colors.black12, width: 1)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    color: Colors.grey.shade50,
+                    child: const Text('Timeline & Layers (Drag to Reorder)', 
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
                   ),
-                ),
-              ],
+                  Expanded(
+                    child: Consumer<CanvasProvider>(
+                      builder: (context, provider, child) {
+                        if (provider.objects.isEmpty) {
+                          return const Center(child: Text('Add objects to build your video timeline.'));
+                        }
+                        return ReorderableListView.builder(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          itemCount: provider.objects.length,
+                          onReorder: (oldIndex, newIndex) {
+                            provider.reorderLayers(oldIndex, newIndex);
+                          },
+                          itemBuilder: (context, index) {
+                            final obj = provider.objects[index];
+                            final isSelected = obj.id == provider.selectedObjectId;
+                            
+                            return Card(
+                              key: ValueKey(obj.id),
+                              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                              elevation: isSelected ? 2 : 0,
+                              color: isSelected ? const Color(0xFF800080).withOpacity(0.05) : Colors.white,
+                              shape: RoundedRectangleBorder(
+                                side: BorderSide(color: isSelected ? const Color(0xFF800080) : Colors.grey.shade300),
+                                borderRadius: BorderRadius.circular(8)
+                              ),
+                              child: ListTile(
+                                leading: Icon(
+                                  obj.type == ObjectType.text ? Icons.title : Icons.gesture,
+                                  color: const Color(0xFF800080),
+                                ),
+                                title: Text(obj.data, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                subtitle: Text('Start: ${obj.startTime.inSeconds}s'),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    // Duration Adjustment
+                                    IconButton(
+                                      icon: const Icon(Icons.remove_circle_outline, size: 20),
+                                      onPressed: obj.duration.inSeconds > 1 
+                                        ? () => provider.updateDuration(obj.id, obj.duration.inSeconds - 1)
+                                        : null,
+                                    ),
+                                    Text('${obj.duration.inSeconds}s', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                    IconButton(
+                                      icon: const Icon(Icons.add_circle_outline, size: 20),
+                                      onPressed: () => provider.updateDuration(obj.id, obj.duration.inSeconds + 1),
+                                    ),
+                                    // Delete Button
+                                    IconButton(
+                                      icon: const Icon(Icons.delete, color: Colors.redAccent, size: 20),
+                                      onPressed: () {
+                                        provider.selectObject(obj.id);
+                                        provider.deleteSelectedObject();
+                                      },
+                                    ),
+                                    const Icon(Icons.drag_handle, color: Colors.grey),
+                                  ],
+                                ),
+                                onTap: () => provider.selectObject(obj.id),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -173,13 +202,13 @@ class EditorScreen extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: Colors.black87),
+            Icon(icon, color: const Color(0xFF800080)),
             const SizedBox(height: 4),
-            Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.black87)),
+            Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
           ],
         ),
       ),
