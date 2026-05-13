@@ -7,7 +7,7 @@ import '../models/canvas_object.dart';
 
 class ExportService {
   Future<String?> exportToMp4({
-    required List<CanvasObject> objects,
+    required List<Scene> scenes,
     required Size videoSize,
     required Function(double) onProgress,
   }) async {
@@ -16,47 +16,75 @@ class ExportService {
       final outputPath = '${tempDir.path}/kaida_export_${DateTime.now().millisecondsSinceEpoch}.mp4';
 
       const int fps = 30;
+
+      // 1. Calculate Timelines for Multiple Scenes
+      List<double> sceneStartTimes = [];
+      List<double> sceneDurations = [];
       double totalDuration = 0;
-      for (var obj in objects) {
-        final endTime = obj.startTime.inMilliseconds / 1000.0 + obj.duration.inMilliseconds / 1000.0;
-        if (endTime > totalDuration) totalDuration = endTime;
+
+      for (var scene in scenes) {
+        double sceneDur = 0;
+        for (var obj in scene.objects) {
+          final endTime = obj.startTime.inMilliseconds / 1000.0 + obj.duration.inMilliseconds / 1000.0;
+          if (endTime > sceneDur) sceneDur = endTime;
+        }
+        if (sceneDur == 0) sceneDur = 2.0; // Minimum 2 seconds for an empty slide
+        sceneDur += 1.0; // 1 second padding at the end of each slide
+
+        sceneStartTimes.add(totalDuration);
+        sceneDurations.add(sceneDur);
+        totalDuration += sceneDur;
       }
-      
-      totalDuration += 1.0; 
+
       final int totalFrames = (totalDuration * fps).toInt();
 
-      // FIX: Added the explicitly required audio configuration parameters
+      // 2. Initialize Native Hardware Encoder (using dynamic aspect ratio)
       await FlutterQuickVideoEncoder.setup(
         width: videoSize.width.toInt(),
         height: videoSize.height.toInt(),
         fps: fps,
         videoBitrate: 2500000,
         profileLevel: ProfileLevel.any,
-        audioBitrate: 64000,     // Required by API
-        audioChannels: 2,        // Required by API (Stereo)
-        sampleRate: 44100,       // Required by API (Standard CD audio)
+        audioBitrate: 64000,
+        audioChannels: 2,
+        sampleRate: 44100,
         filepath: outputPath,
       );
 
+      // 3. Render Frames Across All Scenes
       for (int i = 0; i < totalFrames; i++) {
-        double currentTime = i / fps;
+        double globalTime = i / fps;
         onProgress(i / totalFrames);
+
+        // Determine which Scene (Slide) is currently active
+        int activeSceneIdx = 0;
+        for (int s = 0; s < scenes.length; s++) {
+          if (globalTime >= sceneStartTimes[s] && globalTime < sceneStartTimes[s] + sceneDurations[s]) {
+            activeSceneIdx = s;
+            break;
+          }
+        }
+
+        Scene activeScene = scenes[activeSceneIdx];
+        double sceneLocalTime = globalTime - sceneStartTimes[activeSceneIdx];
 
         final recorder = ui.PictureRecorder();
         final canvas = ui.Canvas(recorder);
 
+        // Draw the specific background color for this Slide
         canvas.drawRect(
           Rect.fromLTWH(0, 0, videoSize.width, videoSize.height),
-          Paint()..color = Colors.white,
+          Paint()..color = activeScene.backgroundColor,
         );
 
-        for (var obj in objects) {
+        // Draw Objects for the Active Scene
+        for (var obj in activeScene.objects) {
           double objStart = obj.startTime.inMilliseconds / 1000.0;
           double objDuration = obj.duration.inMilliseconds / 1000.0;
-          
-          if (currentTime >= objStart) {
-            double progress = ((currentTime - objStart) / objDuration).clamp(0.0, 1.0);
-            
+
+          if (sceneLocalTime >= objStart) {
+            double progress = ((sceneLocalTime - objStart) / objDuration).clamp(0.0, 1.0);
+
             canvas.save();
             canvas.translate(obj.x, obj.y);
 
@@ -64,8 +92,8 @@ class ExportService {
               final textSpan = TextSpan(
                 text: obj.data,
                 style: TextStyle(
-                  color: Colors.black.withOpacity(progress),
-                  fontSize: 32,
+                  color: obj.color.withOpacity(progress), // Smooth fade-in
+                  fontSize: obj.fontSize,
                   fontWeight: FontWeight.bold,
                 ),
               );
@@ -78,7 +106,7 @@ class ExportService {
             } 
             else if (obj.type == ObjectType.drawing && obj.pathData != null) {
               final paint = Paint()
-                ..color = Colors.black
+                ..color = obj.color
                 ..strokeWidth = 4.0
                 ..style = PaintingStyle.stroke
                 ..strokeCap = StrokeCap.round;

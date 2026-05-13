@@ -13,7 +13,7 @@ class ExportScreen extends StatefulWidget {
 
 class _ExportScreenState extends State<ExportScreen> {
   double _progress = 0.0;
-  String _status = 'Initializing...';
+  String _status = 'Initializing Render Engine...';
   String? _outputPath;
   bool _isExporting = true;
 
@@ -24,23 +24,20 @@ class _ExportScreenState extends State<ExportScreen> {
   }
 
   Future<void> _startExport() async {
-    final objects = context.read<CanvasProvider>().objects;
+    // FIX: Pull the list of scenes and the user's chosen resolution
+    final scenes = context.read<CanvasProvider>().scenes;
+    final resolution = context.read<CanvasProvider>().resolution;
     final exportService = ExportService();
 
-    // Standard 720p HD format for MVP
-    const Size renderSize = Size(1280, 720);
-
     final path = await exportService.exportToMp4(
-      objects: objects,
-      videoSize: renderSize,
+      scenes: scenes,
+      videoSize: resolution,
       onProgress: (val) {
         if (!mounted) return;
         setState(() {
           _progress = val;
-          if (val < 0.5) {
-            _status = 'Drawing frames... ${(val * 200).toInt()}%';
-          } else if (val < 1.0) {
-            _status = 'Encoding MP4 Video...';
+          if (val < 1.0) {
+            _status = 'Stitching Slides... ${(val * 100).toInt()}%';
           }
         });
       },
@@ -65,6 +62,8 @@ class _ExportScreenState extends State<ExportScreen> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('Export Video'),
+        backgroundColor: const Color(0xFF800080),
+        foregroundColor: Colors.white,
         automaticallyImplyLeading: !_isExporting,
       ),
       body: Center(
@@ -80,15 +79,9 @@ class _ExportScreenState extends State<ExportScreen> {
                   backgroundColor: Colors.grey.shade200,
                 ),
                 const SizedBox(height: 24),
-                Text(
-                  _status,
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                ),
+                Text(_status, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 12),
-                const Text(
-                  'Please do not close the app.',
-                  style: TextStyle(color: Colors.grey),
-                ),
+                const Text('Please do not close the app.', style: TextStyle(color: Colors.grey)),
               ] else ...[
                 Icon(
                   _outputPath != null ? Icons.check_circle : Icons.error,
@@ -96,25 +89,15 @@ class _ExportScreenState extends State<ExportScreen> {
                   color: _outputPath != null ? Colors.green : Colors.red,
                 ),
                 const SizedBox(height: 24),
-                Text(
-                  _status,
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                ),
+                Text(_status, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                 if (_outputPath != null) ...[
                   const SizedBox(height: 16),
-                  Text(
-                    'Saved to:\n$_outputPath',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
+                  Text('Saved to:\n$_outputPath', textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, color: Colors.grey)),
                 ],
                 const SizedBox(height: 32),
                 ElevatedButton(
                   onPressed: () => Navigator.pop(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF800080),
-                    foregroundColor: Colors.white,
-                  ),
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF800080), foregroundColor: Colors.white),
                   child: const Text('Return to Editor'),
                 )
               ]
