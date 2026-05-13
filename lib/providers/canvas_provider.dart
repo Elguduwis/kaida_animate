@@ -14,16 +14,13 @@ class CanvasProvider extends ChangeNotifier {
   bool _isPlaying = false;
   String _currentProjectName = "New Project";
   
-  // Project Settings
-  Size _resolution = const Size(1280, 720); // Default YouTube
-  int _selectedHandIndex = 0; // 0 to 4 (5 options)
+  Size _resolution = const Size(1280, 720); 
+  int _selectedHandIndex = 0; 
 
-  // Audio
   String? _audioPath;
   String? _audioFileName;
   final AudioPlayer _audioPlayer = AudioPlayer();
 
-  // Getters
   List<Scene> get scenes => _scenes;
   int get currentSceneIndex => _currentSceneIndex;
   Scene get currentScene => _scenes[_currentSceneIndex];
@@ -69,7 +66,6 @@ class CanvasProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- OBJECT OPERATIONS ---
   void addObject(CanvasObject obj) {
     currentScene.objects.add(obj);
     _recalculateTimestamps();
@@ -97,6 +93,24 @@ class CanvasProvider extends ChangeNotifier {
     _recalculateTimestamps();
     notifyListeners();
   }
+  
+  void deleteSelectedObject() {
+    if (_selectedObjectId != null) {
+      currentScene.objects.removeWhere((obj) => obj.id == _selectedObjectId);
+      _selectedObjectId = null;
+      _recalculateTimestamps();
+      notifyListeners();
+    }
+  }
+
+  void updateDuration(String id, int seconds) {
+    final objIndex = currentScene.objects.indexWhere((obj) => obj.id == id);
+    if (objIndex != -1) {
+      currentScene.objects[objIndex].duration = Duration(seconds: seconds);
+      _recalculateTimestamps();
+      notifyListeners();
+    }
+  }
 
   void _recalculateTimestamps() {
     for (var scene in _scenes) {
@@ -108,7 +122,6 @@ class CanvasProvider extends ChangeNotifier {
     }
   }
 
-  // --- AUDIO ---
   Future<void> pickAudio() async {
     FilePickerResult? r = await FilePicker.platform.pickFiles(type: FileType.audio);
     if (r != null) {
@@ -117,8 +130,14 @@ class CanvasProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+  
+  void removeAudioTrack() {
+    _audioPath = null;
+    _audioFileName = null;
+    _audioPlayer.stop();
+    notifyListeners();
+  }
 
-  // --- PERSISTENCE ---
   Future<void> saveProject() async {
     final prefs = await SharedPreferences.getInstance();
     Map<String, dynamic> data = {
@@ -146,6 +165,18 @@ class CanvasProvider extends ChangeNotifier {
       _recalculateTimestamps();
       notifyListeners();
     }
+  }
+  
+  // FIX: Restored clearWorkspace
+  void clearWorkspace() {
+    _scenes = [Scene()];
+    _currentSceneIndex = 0;
+    _selectedObjectId = null;
+    _audioPath = null;
+    _audioFileName = null;
+    _audioPlayer.stop();
+    _currentProjectName = "New Project ${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}";
+    notifyListeners();
   }
 
   void togglePlay() {

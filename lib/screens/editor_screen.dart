@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import '../providers/canvas_provider.dart';
 import '../models/canvas_object.dart';
 import '../animations/animated_drawing_widget.dart';
+import 'export_screen.dart';
 
 class EditorScreen extends StatelessWidget {
   const EditorScreen({super.key});
@@ -58,11 +59,18 @@ class EditorScreen extends StatelessWidget {
         actions: [
           IconButton(icon: const Icon(Icons.save), onPressed: () => provider.saveProject()),
           IconButton(icon: const Icon(Icons.back_hand), onPressed: () => _showHandPicker(context)),
+          IconButton(
+            icon: const Icon(Icons.upload_file),
+            onPressed: () {
+              if (provider.isPlaying) provider.togglePlay();
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const ExportScreen()));
+            },
+          ),
         ],
       ),
       body: Column(
         children: [
-          // Scene Switcher (Top)
+          // Scene Switcher
           SizedBox(
             height: 60,
             child: ListView.builder(
@@ -76,7 +84,8 @@ class EditorScreen extends StatelessWidget {
                     margin: const EdgeInsets.all(8),
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     decoration: BoxDecoration(color: provider.currentSceneIndex == i ? const Color(0xFF800080) : Colors.grey[300], borderRadius: BorderRadius.circular(20)),
-                    center: Text("Slide ${i + 1}", style: TextStyle(color: provider.currentSceneIndex == i ? Colors.white : Colors.black)),
+                    alignment: Alignment.center, // FIX: Used alignment instead of non-existent 'center' parameter
+                    child: Text("Slide ${i + 1}", style: TextStyle(color: provider.currentSceneIndex == i ? Colors.white : Colors.black)),
                   ),
                 );
               },
@@ -84,27 +93,95 @@ class EditorScreen extends StatelessWidget {
           ),
           // Canvas Area
           Expanded(
+            flex: 6,
             child: Center(
               child: AspectRatio(
                 aspectRatio: provider.resolution.width / provider.resolution.height,
                 child: Container(
                   color: provider.currentScene.backgroundColor,
                   child: Stack(
-                    children: provider.currentScene.objects.map((obj) => Positioned(
-                      left: obj.x, top: obj.y,
-                      child: GestureDetector(
-                        onPanUpdate: (d) => provider.updateObjectPosition(obj.id, d.delta.dx, d.delta.dy),
-                        child: AnimatedDrawingWidget(object: obj, isPlaying: isPlaying, handIndex: provider.selectedHandIndex),
-                      ),
-                    )).toList(),
+                    children: provider.currentScene.objects.map((obj) {
+                      final isSelected = obj.id == provider.selectedObjectId;
+                      return Positioned(
+                        left: obj.x, top: obj.y,
+                        child: GestureDetector(
+                          onTap: () => provider.selectObject(obj.id),
+                          onPanUpdate: (d) => provider.updateObjectPosition(obj.id, d.delta.dx, d.delta.dy),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              border: Border.all(color: isSelected && !isPlaying ? const Color(0xFF800080) : Colors.transparent, width: 2),
+                            ),
+                            child: AnimatedDrawingWidget(object: obj, isPlaying: isPlaying, handIndex: provider.selectedHandIndex),
+                          ),
+                        ),
+                      );
+                    }).toList(),
                   ),
                 ),
               ),
             ),
           ),
-          // Bottom Toolbar
+          // Timeline & Layers
+          Expanded(
+            flex: 4,
+            child: Container(
+              decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: Colors.black12))),
+              child: Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    color: Colors.grey.shade50,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Timeline & Layers', style: TextStyle(fontWeight: FontWeight.bold)),
+                        if (provider.audioFileName != null)
+                          Chip(
+                            label: Text(provider.audioFileName!, maxLines: 1),
+                            onDeleted: () => provider.removeAudioTrack(),
+                            backgroundColor: const Color(0xFF800080).withOpacity(0.1),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: ReorderableListView.builder(
+                      itemCount: provider.currentScene.objects.length,
+                      onReorder: (oldIdx, newIdx) => provider.reorderObjects(oldIdx, newIdx),
+                      itemBuilder: (context, index) {
+                        final obj = provider.currentScene.objects[index];
+                        final isSelected = obj.id == provider.selectedObjectId;
+                        return Card(
+                          key: ValueKey(obj.id),
+                          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          color: isSelected ? const Color(0xFF800080).withOpacity(0.05) : Colors.white,
+                          child: ListTile(
+                            leading: Icon(obj.type == ObjectType.text ? Icons.title : Icons.gesture),
+                            title: Text(obj.data),
+                            subtitle: Text('Start: ${obj.startTime.inSeconds}s'),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(icon: const Icon(Icons.remove_circle_outline, size: 20), onPressed: obj.duration.inSeconds > 1 ? () => provider.updateDuration(obj.id, obj.duration.inSeconds - 1) : null),
+                                Text('${obj.duration.inSeconds}s', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                IconButton(icon: const Icon(Icons.add_circle_outline, size: 20), onPressed: () => provider.updateDuration(obj.id, obj.duration.inSeconds + 1)),
+                                IconButton(icon: const Icon(Icons.delete, color: Colors.redAccent, size: 20), onPressed: () { provider.selectObject(obj.id); provider.deleteSelectedObject(); }),
+                                const Icon(Icons.drag_handle, color: Colors.grey),
+                              ],
+                            ),
+                            onTap: () => provider.selectObject(obj.id),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Toolbar
           Container(
-            height: 100,
+            height: 80,
             color: Colors.white,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -114,7 +191,7 @@ class EditorScreen extends StatelessWidget {
                   FilePickerResult? r = await FilePicker.platform.pickFiles(type: FileType.image);
                   if (r != null) provider.addObject(CanvasObject(type: ObjectType.image, data: r.files.single.path!));
                 }),
-                _toolIcon(Icons.palette, "BG Color", () => provider.updateSceneColor(Colors.blue[100]!)),
+                _toolIcon(Icons.audiotrack, "Music", () => provider.pickAudio()),
                 FloatingActionButton(onPressed: () => provider.togglePlay(), child: Icon(isPlaying ? Icons.stop : Icons.play_arrow)),
               ],
             ),
@@ -125,7 +202,7 @@ class EditorScreen extends StatelessWidget {
   }
 
   void _showHandPicker(BuildContext context) {
-    showModalBottomSheet(context: context, builder: (ctx) => Container(
+    showModalBottomSheet(context: context, builder: (ctx) => SizedBox(
       height: 200,
       child: GridView.builder(
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 5),
