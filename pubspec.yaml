@@ -1,5 +1,5 @@
 name: kaida_animate
-description: KAIDA Animate MVP - Educational Whiteboard Videos
+description: KAIDA Animate MVP
 publish_to: "none"
 
 environment:
@@ -12,8 +12,8 @@ dependencies:
   provider: ^6.1.2
   uuid: ^4.3.3
   path_provider: ^2.1.2
-  # Using the main, modern package. We will force the artifact resolution in CI.
-  ffmpeg_kit_flutter: ^6.0.3
+  # The exact, guaranteed version that exists on Maven Central
+  ffmpeg_kit_flutter_min_gpl: 5.1.0
 
 dev_dependencies:
   flutter_test:

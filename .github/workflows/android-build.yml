@@ -16,35 +16,24 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
+    # LOCK FLUTTER TO 3.16.9
+    # This specifically avoids the fatal "namespace" error on ffmpeg 5.1.0
     - uses: subosito/flutter-action@v2
       with:
+        flutter-version: '3.16.9'
         channel: 'stable'
 
     - run: flutter create --platforms=android .
 
-    - run: flutter pub get
-
-    # THE DEFINITIVE OVERRIDE: Using safe echo appends to avoid Bash indentation errors
+    # THE ULTIMATE NATIVE FIX
+    # We natively instruct Flutter to use SDK 34 for path_provider,
+    # and SDK 24 for ffmpeg. No script patching required.
     - run: |
-        if [ -f android/build.gradle ]; then
-          echo "" >> android/build.gradle
-          echo "allprojects {" >> android/build.gradle
-          echo "    configurations.all {" >> android/build.gradle
-          echo "        resolutionStrategy {" >> android/build.gradle
-          echo "            force 'com.arthenica:ffmpeg-kit-https:5.1.LTS'" >> android/build.gradle
-          echo "        }" >> android/build.gradle
-          echo "    }" >> android/build.gradle
-          echo "}" >> android/build.gradle
-        elif [ -f android/build.gradle.kts ]; then
-          echo "" >> android/build.gradle.kts
-          echo "allprojects {" >> android/build.gradle.kts
-          echo "    configurations.all {" >> android/build.gradle.kts
-          echo "        resolutionStrategy {" >> android/build.gradle.kts
-          echo "            force(\"com.arthenica:ffmpeg-kit-https:5.1.LTS\")" >> android/build.gradle.kts
-          echo "        }" >> android/build.gradle.kts
-          echo "    }" >> android/build.gradle.kts
-          echo "}" >> android/build.gradle.kts
-        fi
+        echo "flutter.compileSdkVersion=34" >> android/local.properties
+        echo "flutter.targetSdkVersion=34" >> android/local.properties
+        echo "flutter.minSdkVersion=24" >> android/local.properties
+
+    - run: flutter pub get
 
     - run: flutter build apk --release
 
