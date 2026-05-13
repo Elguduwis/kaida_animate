@@ -16,16 +16,17 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
+    # STRICT ENVIRONMENT LOCK:
+    # Compiling with Flutter 3.13.9 natively forces AGP 7.x.
+    # This prevents the AGP 8 "namespace" build failure for ffmpeg 5.1.0.
     - uses: subosito/flutter-action@v2
       with:
+        flutter-version: '3.13.9'
         channel: 'stable'
 
     - run: flutter create --platforms=android .
 
     - run: flutter pub get
-
-    # The official, hack-free way to set minSdkVersion for FFmpeg in Flutter
-    - run: echo "flutter.minSdkVersion=24" >> android/local.properties
 
     - run: flutter build apk --release
 
