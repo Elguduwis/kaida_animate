@@ -12,8 +12,8 @@ dependencies:
   provider: ^6.1.2
   uuid: ^4.3.3
   path_provider: ^2.1.2
-  # The exact, guaranteed version that exists on Maven Central
-  ffmpeg_kit_flutter_min_gpl: 5.1.0
+  # THE SILVER BULLET: Native hardware encoding. Zero FFmpeg.
+  flutter_quick_video_encoder: ^1.7.2
 
 dev_dependencies:
   flutter_test:

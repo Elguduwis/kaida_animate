@@ -16,22 +16,20 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    # LOCK FLUTTER TO 3.16.9
-    # This specifically avoids the fatal "namespace" error on ffmpeg 5.1.0
+    # Use the absolute latest, stable Flutter
     - uses: subosito/flutter-action@v2
       with:
-        flutter-version: '3.16.9'
         channel: 'stable'
 
     - run: flutter create --platforms=android .
 
-    # THE ULTIMATE NATIVE FIX
-    # We natively instruct Flutter to use SDK 34 for path_provider,
-    # and SDK 24 for ffmpeg. No script patching required.
+    # Safely force Android SDK 34 to satisfy path_provider's latest requirements
     - run: |
-        echo "flutter.compileSdkVersion=34" >> android/local.properties
-        echo "flutter.targetSdkVersion=34" >> android/local.properties
-        echo "flutter.minSdkVersion=24" >> android/local.properties
+        if [ -f android/app/build.gradle ]; then
+          sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 34/g' android/app/build.gradle
+        elif [ -f android/app/build.gradle.kts ]; then
+          sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 34/g' android/app/build.gradle.kts
+        fi
 
     - run: flutter pub get
 

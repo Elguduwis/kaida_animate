@@ -2,8 +2,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:ffmpeg_kit_flutter/ffmpeg_kit.dart';
-import 'package:ffmpeg_kit_flutter/return_code.dart';
+import 'package:flutter_quick_video_encoder/flutter_quick_video_encoder.dart';
 import '../models/canvas_object.dart';
 
 class ExportService {
@@ -14,12 +13,7 @@ class ExportService {
   }) async {
     try {
       final tempDir = await getTemporaryDirectory();
-      final framesDir = Directory('${tempDir.path}/frames');
-      
-      if (await framesDir.exists()) {
-        await framesDir.delete(recursive: true);
-      }
-      await framesDir.create();
+      final outputPath = '${tempDir.path}/kaida_export_${DateTime.now().millisecondsSinceEpoch}.mp4';
 
       const int fps = 30;
       double totalDuration = 0;
@@ -28,12 +22,22 @@ class ExportService {
         if (endTime > totalDuration) totalDuration = endTime;
       }
       
-      totalDuration += 1.0;
+      totalDuration += 1.0; // 1 second padding at the end
       final int totalFrames = (totalDuration * fps).toInt();
 
+      // 1. Initialize the Native Hardware Encoder
+      await FlutterQuickVideoEncoder.setup(
+        width: videoSize.width.toInt(),
+        height: videoSize.height.toInt(),
+        fps: fps,
+        videoBitrate: 2500000,
+        filepath: outputPath,
+      );
+
+      // 2. Generate and Append Frames Natively
       for (int i = 0; i < totalFrames; i++) {
         double currentTime = i / fps;
-        onProgress((i / totalFrames) * 0.5);
+        onProgress(i / totalFrames);
 
         final recorder = ui.PictureRecorder();
         final canvas = ui.Canvas(recorder);
@@ -91,28 +95,22 @@ class ExportService {
 
         final picture = recorder.endRecording();
         final image = await picture.toImage(videoSize.width.toInt(), videoSize.height.toInt());
-        final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
         
-        final frameFile = File('${framesDir.path}/frame_${i.toString().padLeft(4, '0')}.png');
-        await frameFile.writeAsBytes(byteData!.buffer.asUint8List());
+        // Extract raw RGBA pixels
+        final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+        if (byteData != null) {
+          final rgbaList = byteData.buffer.asUint8List();
+          // Directly append to the MP4 file
+          await FlutterQuickVideoEncoder.appendVideoFrame(rgbaList);
+        }
       }
 
-      onProgress(0.6); 
+      // 3. Finalize MP4 File
+      await FlutterQuickVideoEncoder.finish();
+      onProgress(1.0);
       
-      final outputPath = '${tempDir.path}/kaida_export_${DateTime.now().millisecondsSinceEpoch}.mp4';
-      
-      final String command = "-y -framerate $fps -i '${framesDir.path}/frame_%04d.png' -c:v libx264 -pix_fmt yuv420p -preset ultrafast '$outputPath'";
+      return outputPath;
 
-      final session = await FFmpegKit.execute(command);
-      final returnCode = await session.getReturnCode();
-
-      if (ReturnCode.isSuccess(returnCode)) {
-        onProgress(1.0);
-        return outputPath;
-      } else {
-        debugPrint("FFmpeg export failed.");
-        return null;
-      }
     } catch (e) {
       debugPrint("Export Error: $e");
       return null;
