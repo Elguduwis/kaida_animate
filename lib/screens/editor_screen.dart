@@ -12,6 +12,7 @@ class EditorScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final isPlaying = context.watch<CanvasProvider>().isPlaying;
     final projectName = context.watch<CanvasProvider>().currentProjectName;
+    final audioFileName = context.watch<CanvasProvider>().audioFileName;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF0F0F0),
@@ -54,6 +55,7 @@ class EditorScreen extends StatelessWidget {
               children: [
                 _buildToolBtn(context, Icons.text_fields, 'Text', () => context.read<CanvasProvider>().addTextObject('New Text')),
                 _buildToolBtn(context, Icons.gesture, 'Draw', () => context.read<CanvasProvider>().addDrawingObject()),
+                _buildToolBtn(context, Icons.audiotrack, 'Music', () => context.read<CanvasProvider>().pickAudioTrack()),
                 Container(width: 1, height: 30, color: Colors.grey.shade300),
                 FloatingActionButton.extended(
                   backgroundColor: isPlaying ? Colors.redAccent : const Color(0xFF800080),
@@ -126,7 +128,20 @@ class EditorScreen extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(12),
                     color: Colors.grey.shade50,
-                    child: const Text('Timeline & Layers', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Timeline & Layers', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+                        if (audioFileName != null)
+                          Chip(
+                            label: Text(audioFileName, maxLines: 1, overflow: TextOverflow.ellipsis),
+                            avatar: const Icon(Icons.music_note, size: 16),
+                            deleteIcon: const Icon(Icons.cancel, size: 16),
+                            onDeleted: () => context.read<CanvasProvider>().removeAudioTrack(),
+                            backgroundColor: const Color(0xFF800080).withOpacity(0.1),
+                          ),
+                      ],
+                    ),
                   ),
                   Expanded(
                     child: Consumer<CanvasProvider>(
