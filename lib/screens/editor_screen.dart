@@ -11,15 +11,27 @@ class EditorScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isPlaying = context.watch<CanvasProvider>().isPlaying;
+    final projectName = context.watch<CanvasProvider>().currentProjectName;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF0F0F0),
       appBar: AppBar(
-        title: const Text('KAIDA Editor', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        title: Text(projectName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         backgroundColor: const Color(0xFF800080),
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.save),
+            tooltip: 'Save Project',
+            onPressed: () async {
+              await context.read<CanvasProvider>().saveProject();
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Project Saved!'), backgroundColor: Colors.green),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.upload_file),
             tooltip: 'Export Video',
@@ -34,7 +46,6 @@ class EditorScreen extends StatelessWidget {
       ),
       body: Column(
         children: [
-          // Toolbar Container
           Container(
             padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
             color: Colors.white,
@@ -55,8 +66,6 @@ class EditorScreen extends StatelessWidget {
               ],
             ),
           ),
-          
-          // The Main Canvas View (Upper Half)
           Expanded(
             flex: 6,
             child: GestureDetector(
@@ -104,8 +113,6 @@ class EditorScreen extends StatelessWidget {
               ),
             ),
           ),
-
-          // The Timeline & Layer Manager (Lower Half)
           Expanded(
             flex: 4,
             child: Container(
@@ -119,8 +126,7 @@ class EditorScreen extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(12),
                     color: Colors.grey.shade50,
-                    child: const Text('Timeline & Layers (Drag to Reorder)', 
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+                    child: const Text('Timeline & Layers', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
                   ),
                   Expanded(
                     child: Consumer<CanvasProvider>(
@@ -131,9 +137,7 @@ class EditorScreen extends StatelessWidget {
                         return ReorderableListView.builder(
                           padding: const EdgeInsets.symmetric(vertical: 8),
                           itemCount: provider.objects.length,
-                          onReorder: (oldIndex, newIndex) {
-                            provider.reorderLayers(oldIndex, newIndex);
-                          },
+                          onReorder: (oldIndex, newIndex) => provider.reorderLayers(oldIndex, newIndex),
                           itemBuilder: (context, index) {
                             final obj = provider.objects[index];
                             final isSelected = obj.id == provider.selectedObjectId;
@@ -148,28 +152,21 @@ class EditorScreen extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(8)
                               ),
                               child: ListTile(
-                                leading: Icon(
-                                  obj.type == ObjectType.text ? Icons.title : Icons.gesture,
-                                  color: const Color(0xFF800080),
-                                ),
+                                leading: Icon(obj.type == ObjectType.text ? Icons.title : Icons.gesture, color: const Color(0xFF800080)),
                                 title: Text(obj.data, maxLines: 1, overflow: TextOverflow.ellipsis),
                                 subtitle: Text('Start: ${obj.startTime.inSeconds}s'),
                                 trailing: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    // Duration Adjustment
                                     IconButton(
                                       icon: const Icon(Icons.remove_circle_outline, size: 20),
-                                      onPressed: obj.duration.inSeconds > 1 
-                                        ? () => provider.updateDuration(obj.id, obj.duration.inSeconds - 1)
-                                        : null,
+                                      onPressed: obj.duration.inSeconds > 1 ? () => provider.updateDuration(obj.id, obj.duration.inSeconds - 1) : null,
                                     ),
                                     Text('${obj.duration.inSeconds}s', style: const TextStyle(fontWeight: FontWeight.bold)),
                                     IconButton(
                                       icon: const Icon(Icons.add_circle_outline, size: 20),
                                       onPressed: () => provider.updateDuration(obj.id, obj.duration.inSeconds + 1),
                                     ),
-                                    // Delete Button
                                     IconButton(
                                       icon: const Icon(Icons.delete, color: Colors.redAccent, size: 20),
                                       onPressed: () {
