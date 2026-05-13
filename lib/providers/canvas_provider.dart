@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:file_picker/file_picker.dart';
@@ -6,57 +7,71 @@ import 'package:audioplayers/audioplayers.dart';
 import '../models/canvas_object.dart';
 
 class CanvasProvider extends ChangeNotifier {
-  List<CanvasObject> _objects = [];
+  List<Scene> _scenes = [Scene()];
+  int _currentSceneIndex = 0;
+  
   String? _selectedObjectId;
   bool _isPlaying = false;
-  String _currentProjectName = "Draft Project";
+  String _currentProjectName = "New Project";
   
-  // Audio Mixer State
+  // Project Settings
+  Size _resolution = const Size(1280, 720); // Default YouTube
+  int _selectedHandIndex = 0; // 0 to 4 (5 options)
+
+  // Audio
   String? _audioPath;
   String? _audioFileName;
   final AudioPlayer _audioPlayer = AudioPlayer();
 
-  List<CanvasObject> get objects => _objects;
-  String? get selectedObjectId => _selectedObjectId;
+  // Getters
+  List<Scene> get scenes => _scenes;
+  int get currentSceneIndex => _currentSceneIndex;
+  Scene get currentScene => _scenes[_currentSceneIndex];
+  Size get resolution => _resolution;
+  int get selectedHandIndex => _selectedHandIndex;
+  String? get audioFileName => _audioFileName;
   bool get isPlaying => _isPlaying;
   String get currentProjectName => _currentProjectName;
-  String? get audioFileName => _audioFileName;
+  String? get selectedObjectId => _selectedObjectId;
 
-  void setProjectName(String name) {
-    _currentProjectName = name;
+  void selectScene(int index) {
+    _currentSceneIndex = index;
+    _selectedObjectId = null;
     notifyListeners();
   }
 
-  // --- AUDIO MIXER ENGINE ---
-  Future<void> pickAudioTrack() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.audio,
-    );
+  void addScene() {
+    _scenes.add(Scene());
+    _currentSceneIndex = _scenes.length - 1;
+    notifyListeners();
+  }
 
-    if (result != null && result.files.single.path != null) {
-      _audioPath = result.files.single.path!;
-      _audioFileName = result.files.single.name;
+  void deleteScene(int index) {
+    if (_scenes.length > 1) {
+      _scenes.removeAt(index);
+      if (_currentSceneIndex >= _scenes.length) _currentSceneIndex = _scenes.length - 1;
       notifyListeners();
     }
   }
 
-  void removeAudioTrack() {
-    _audioPath = null;
-    _audioFileName = null;
-    _audioPlayer.stop();
+  void updateResolution(Size res) {
+    _resolution = res;
     notifyListeners();
   }
 
-  // --- CANVAS OPERATIONS ---
-  void addTextObject(String text) {
-    _objects.add(CanvasObject(type: ObjectType.text, data: text, width: 150, height: 50, duration: const Duration(seconds: 3)));
-    _recalculateTimestamps();
+  void setHand(int index) {
+    _selectedHandIndex = index;
     notifyListeners();
   }
 
-  void addDrawingObject() {
-    Path samplePath = Path()..moveTo(50, 0)..lineTo(65, 35)..lineTo(100, 35)..lineTo(70, 55)..lineTo(80, 90)..lineTo(50, 70)..lineTo(20, 90)..lineTo(30, 55)..lineTo(0, 35)..lineTo(35, 35)..close();
-    _objects.add(CanvasObject(type: ObjectType.drawing, data: 'Sample Star', pathData: samplePath, width: 100, height: 100, duration: const Duration(seconds: 4)));
+  void updateSceneColor(Color color) {
+    currentScene.backgroundColor = color;
+    notifyListeners();
+  }
+
+  // --- OBJECT OPERATIONS ---
+  void addObject(CanvasObject obj) {
+    currentScene.objects.add(obj);
     _recalculateTimestamps();
     notifyListeners();
   }
@@ -66,127 +81,80 @@ class CanvasProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void updateObjectPosition(String id, double deltaX, double deltaY) {
-    final objIndex = _objects.indexWhere((obj) => obj.id == id);
-    if (objIndex != -1) {
-      _objects[objIndex].updatePosition(_objects[objIndex].x + deltaX, _objects[objIndex].y + deltaY);
+  void updateObjectPosition(String id, double dx, double dy) {
+    final idx = currentScene.objects.indexWhere((o) => o.id == id);
+    if (idx != -1) {
+      currentScene.objects[idx].x += dx;
+      currentScene.objects[idx].y += dy;
       notifyListeners();
     }
   }
 
-  void deleteSelectedObject() {
-    if (_selectedObjectId != null) {
-      _objects.removeWhere((obj) => obj.id == _selectedObjectId);
-      _selectedObjectId = null;
-      _recalculateTimestamps();
-      notifyListeners();
-    }
-  }
-
-  void reorderLayers(int oldIndex, int newIndex) {
-    if (oldIndex < newIndex) newIndex -= 1;
-    final CanvasObject item = _objects.removeAt(oldIndex);
-    _objects.insert(newIndex, item);
+  void reorderObjects(int oldIdx, int newIdx) {
+    if (oldIdx < newIdx) newIdx -= 1;
+    final obj = currentScene.objects.removeAt(oldIdx);
+    currentScene.objects.insert(newIdx, obj);
     _recalculateTimestamps();
     notifyListeners();
   }
 
-  void updateDuration(String id, int seconds) {
-    final objIndex = _objects.indexWhere((obj) => obj.id == id);
-    if (objIndex != -1) {
-      _objects[objIndex].duration = Duration(seconds: seconds);
+  void _recalculateTimestamps() {
+    for (var scene in _scenes) {
+      Duration start = Duration.zero;
+      for (var obj in scene.objects) {
+        obj.startTime = start;
+        start += obj.duration;
+      }
+    }
+  }
+
+  // --- AUDIO ---
+  Future<void> pickAudio() async {
+    FilePickerResult? r = await FilePicker.platform.pickFiles(type: FileType.audio);
+    if (r != null) {
+      _audioPath = r.files.single.path;
+      _audioFileName = r.files.single.name;
+      notifyListeners();
+    }
+  }
+
+  // --- PERSISTENCE ---
+  Future<void> saveProject() async {
+    final prefs = await SharedPreferences.getInstance();
+    Map<String, dynamic> data = {
+      'name': _currentProjectName,
+      'width': _resolution.width,
+      'height': _resolution.height,
+      'handIndex': _selectedHandIndex,
+      'audioPath': _audioPath,
+      'scenes': _scenes.map((s) => s.toJson()).toList(),
+    };
+    await prefs.setString('project_$_currentProjectName', jsonEncode(data));
+  }
+
+  Future<void> loadProject(String name) async {
+    final prefs = await SharedPreferences.getInstance();
+    String? raw = prefs.getString('project_$name');
+    if (raw != null) {
+      Map<String, dynamic> d = jsonDecode(raw);
+      _currentProjectName = d['name'];
+      _resolution = Size(d['width'], d['height']);
+      _selectedHandIndex = d['handIndex'] ?? 0;
+      _audioPath = d['audioPath'];
+      _scenes = (d['scenes'] as List).map((s) => Scene.fromJson(s)).toList();
+      _currentSceneIndex = 0;
       _recalculateTimestamps();
       notifyListeners();
     }
   }
 
-  void _recalculateTimestamps() {
-    Duration currentStart = Duration.zero;
-    for (var obj in _objects) {
-      obj.startTime = currentStart;
-      currentStart += obj.duration;
-    }
-  }
-
-  void togglePlay() async {
+  void togglePlay() {
     _isPlaying = !_isPlaying;
-    _selectedObjectId = null;
-    notifyListeners();
-    
-    if (_isPlaying) {
-      // Sync audio playback with animation preview
-      if (_audioPath != null) {
-        await _audioPlayer.play(DeviceFileSource(_audioPath!));
-      }
-
-      Duration totalDuration = Duration.zero;
-      for (var obj in _objects) totalDuration += obj.duration;
-      
-      Future.delayed(totalDuration, () {
-        if (_isPlaying) {
-          _isPlaying = false;
-          _audioPlayer.stop(); // Stop audio when animation ends
-          notifyListeners();
-        }
-      });
+    if (_isPlaying && _audioPath != null) {
+       _audioPlayer.play(DeviceFileSource(_audioPath!));
     } else {
-      await _audioPlayer.stop(); // Stop audio if manually paused
+       _audioPlayer.stop();
     }
-  }
-
-  // --- PERSISTENCE ENGINE WITH AUDIO SUPPORT ---
-  Future<void> saveProject() async {
-    final prefs = await SharedPreferences.getInstance();
-    
-    Map<String, dynamic> projectData = {
-      'audioPath': _audioPath,
-      'audioFileName': _audioFileName,
-      'objects': _objects.map((e) => e.toJson()).toList(),
-    };
-    
-    final String jsonData = jsonEncode(projectData);
-    await prefs.setString('project_$_currentProjectName', jsonData);
-  }
-
-  Future<void> loadProject(String projectName) async {
-    final prefs = await SharedPreferences.getInstance();
-    final String? jsonData = prefs.getString('project_$projectName');
-    
-    if (jsonData != null) {
-      try {
-        final Map<String, dynamic> decoded = jsonDecode(jsonData);
-        
-        // Load Audio state
-        _audioPath = decoded['audioPath'];
-        _audioFileName = decoded['audioFileName'];
-        
-        // Load Objects
-        final List<dynamic> objectsList = decoded['objects'] ?? [];
-        _objects = objectsList.map((e) => CanvasObject.fromJson(e)).toList();
-        
-        _currentProjectName = projectName;
-        _recalculateTimestamps();
-        notifyListeners();
-      } catch (e) {
-        // Fallback for older projects saved as a direct list
-        final List<dynamic> decodedList = jsonDecode(jsonData);
-        _objects = decodedList.map((e) => CanvasObject.fromJson(e)).toList();
-        _audioPath = null;
-        _audioFileName = null;
-        _currentProjectName = projectName;
-        _recalculateTimestamps();
-        notifyListeners();
-      }
-    }
-  }
-
-  void clearWorkspace() {
-    _objects.clear();
-    _selectedObjectId = null;
-    _audioPath = null;
-    _audioFileName = null;
-    _audioPlayer.stop();
-    _currentProjectName = "Draft Project ${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}";
     notifyListeners();
   }
 }

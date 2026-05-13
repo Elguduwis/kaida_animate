@@ -6,7 +6,7 @@ enum ObjectType { text, image, drawing }
 class CanvasObject {
   final String id;
   final ObjectType type;
-  String data; 
+  String data; // Text content or file path
   Path? pathData; 
   double x;
   double y;
@@ -14,6 +14,10 @@ class CanvasObject {
   double height;
   Duration startTime;
   Duration duration;
+  
+  // Style Properties
+  Color color;
+  double fontSize;
 
   CanvasObject({
     String? id,
@@ -22,18 +26,14 @@ class CanvasObject {
     this.pathData,
     this.x = 50.0,
     this.y = 50.0,
-    this.width = 100.0,
+    this.width = 200.0,
     this.height = 100.0,
     this.startTime = Duration.zero,
     this.duration = const Duration(seconds: 3),
+    this.color = Colors.black,
+    this.fontSize = 24.0,
   }) : id = id ?? const Uuid().v4();
 
-  void updatePosition(double newX, double newY) {
-    x = newX;
-    y = newY;
-  }
-
-  // --- SERIALIZATION ENGINE ---
   Map<String, dynamic> toJson() => {
         'id': id,
         'type': type.toString(),
@@ -44,31 +44,48 @@ class CanvasObject {
         'height': height,
         'startTime': startTime.inMilliseconds,
         'duration': duration.inMilliseconds,
+        'color': color.value,
+        'fontSize': fontSize,
       };
 
   factory CanvasObject.fromJson(Map<String, dynamic> json) {
     ObjectType parsedType = ObjectType.values.firstWhere((e) => e.toString() == json['type']);
-    
-    // For MVP MVP drawing persistence, we regenerate the sample path if it's a drawing
-    Path? reconstructedPath;
-    if (parsedType == ObjectType.drawing) {
-      reconstructedPath = Path()
-        ..moveTo(50, 0)..lineTo(65, 35)..lineTo(100, 35)..lineTo(70, 55)
-        ..lineTo(80, 90)..lineTo(50, 70)..lineTo(20, 90)..lineTo(30, 55)
-        ..lineTo(0, 35)..lineTo(35, 35)..close();
-    }
-
     return CanvasObject(
       id: json['id'],
       type: parsedType,
       data: json['data'],
-      pathData: reconstructedPath,
       x: json['x'],
       y: json['y'],
       width: json['width'],
       height: json['height'],
       startTime: Duration(milliseconds: json['startTime']),
       duration: Duration(milliseconds: json['duration']),
+      color: Color(json['color'] ?? Colors.black.value),
+      fontSize: (json['fontSize'] ?? 24.0).toDouble(),
+    );
+  }
+}
+
+class Scene {
+  final String id;
+  List<CanvasObject> objects;
+  Color backgroundColor;
+
+  Scene({String? id, List<CanvasObject>? objects, this.backgroundColor = Colors.white})
+      : id = id ?? const Uuid().v4(),
+        objects = objects ?? [];
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'backgroundColor': backgroundColor.value,
+        'objects': objects.map((e) => e.toJson()).toList(),
+      };
+
+  factory Scene.fromJson(Map<String, dynamic> json) {
+    return Scene(
+      id: json['id'],
+      backgroundColor: Color(json['backgroundColor'] ?? Colors.white.value),
+      objects: (json['objects'] as List).map((e) => CanvasObject.fromJson(e)).toList(),
     );
   }
 }

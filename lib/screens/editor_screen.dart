@@ -1,229 +1,142 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:file_picker/file_picker.dart';
 import '../providers/canvas_provider.dart';
-import '../animations/animated_drawing_widget.dart';
 import '../models/canvas_object.dart';
-import 'export_screen.dart';
+import '../animations/animated_drawing_widget.dart';
 
 class EditorScreen extends StatelessWidget {
   const EditorScreen({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    final isPlaying = context.watch<CanvasProvider>().isPlaying;
-    final projectName = context.watch<CanvasProvider>().currentProjectName;
-    final audioFileName = context.watch<CanvasProvider>().audioFileName;
+  void _showTextDialog(BuildContext context) {
+    final controller = TextEditingController();
+    Color selectedColor = Colors.black;
+    double fontSize = 24.0;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF0F0F0),
-      appBar: AppBar(
-        title: Text(projectName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        backgroundColor: const Color(0xFF800080),
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.save),
-            tooltip: 'Save Project',
-            onPressed: () async {
-              await context.read<CanvasProvider>().saveProject();
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Project Saved!'), backgroundColor: Colors.green),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.upload_file),
-            tooltip: 'Export Video',
-            onPressed: () {
-              if (context.read<CanvasProvider>().isPlaying) {
-                context.read<CanvasProvider>().togglePlay();
-              }
-              Navigator.push(context, MaterialPageRoute(builder: (context) => const ExportScreen()));
-            },
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
-            color: Colors.white,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildToolBtn(context, Icons.text_fields, 'Text', () => context.read<CanvasProvider>().addTextObject('New Text')),
-                _buildToolBtn(context, Icons.gesture, 'Draw', () => context.read<CanvasProvider>().addDrawingObject()),
-                _buildToolBtn(context, Icons.audiotrack, 'Music', () => context.read<CanvasProvider>().pickAudioTrack()),
-                Container(width: 1, height: 30, color: Colors.grey.shade300),
-                FloatingActionButton.extended(
-                  backgroundColor: isPlaying ? Colors.redAccent : const Color(0xFF800080),
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  icon: Icon(isPlaying ? Icons.stop : Icons.play_arrow),
-                  label: Text(isPlaying ? "Stop" : "Preview"),
-                  onPressed: () => context.read<CanvasProvider>().togglePlay(),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            flex: 6,
-            child: GestureDetector(
-              onTap: () => context.read<CanvasProvider>().selectObject(null),
-              child: Container(
-                margin: const EdgeInsets.all(12.0),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8.0),
-                  boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 8)],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8.0),
-                  child: Consumer<CanvasProvider>(
-                    builder: (context, provider, child) {
-                      return Stack(
-                        children: provider.objects.map((obj) {
-                          final isSelected = obj.id == provider.selectedObjectId;
-                          return Positioned(
-                            left: obj.x,
-                            top: obj.y,
-                            child: GestureDetector(
-                              onTap: () => provider.selectObject(obj.id),
-                              onPanUpdate: (details) {
-                                provider.selectObject(obj.id);
-                                provider.updateObjectPosition(obj.id, details.delta.dx, details.delta.dy);
-                              },
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  border: Border.all(
-                                    color: isSelected && !isPlaying ? const Color(0xFF800080) : Colors.transparent,
-                                    width: 2,
-                                    strokeAlign: BorderSide.strokeAlignOutside,
-                                  ),
-                                ),
-                                child: AnimatedDrawingWidget(object: obj, isPlaying: isPlaying),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      );
-                    },
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 4,
-            child: Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                border: Border(top: BorderSide(color: Colors.black12, width: 1)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Add Text'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: controller, decoration: const InputDecoration(hintText: "Enter text...")),
+              const SizedBox(height: 10),
+              Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    color: Colors.grey.shade50,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Timeline & Layers', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
-                        if (audioFileName != null)
-                          Chip(
-                            label: Text(audioFileName, maxLines: 1, overflow: TextOverflow.ellipsis),
-                            avatar: const Icon(Icons.music_note, size: 16),
-                            deleteIcon: const Icon(Icons.cancel, size: 16),
-                            onDeleted: () => context.read<CanvasProvider>().removeAudioTrack(),
-                            backgroundColor: const Color(0xFF800080).withOpacity(0.1),
-                          ),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: Consumer<CanvasProvider>(
-                      builder: (context, provider, child) {
-                        if (provider.objects.isEmpty) {
-                          return const Center(child: Text('Add objects to build your video timeline.'));
-                        }
-                        return ReorderableListView.builder(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          itemCount: provider.objects.length,
-                          onReorder: (oldIndex, newIndex) => provider.reorderLayers(oldIndex, newIndex),
-                          itemBuilder: (context, index) {
-                            final obj = provider.objects[index];
-                            final isSelected = obj.id == provider.selectedObjectId;
-                            
-                            return Card(
-                              key: ValueKey(obj.id),
-                              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                              elevation: isSelected ? 2 : 0,
-                              color: isSelected ? const Color(0xFF800080).withOpacity(0.05) : Colors.white,
-                              shape: RoundedRectangleBorder(
-                                side: BorderSide(color: isSelected ? const Color(0xFF800080) : Colors.grey.shade300),
-                                borderRadius: BorderRadius.circular(8)
-                              ),
-                              child: ListTile(
-                                leading: Icon(obj.type == ObjectType.text ? Icons.title : Icons.gesture, color: const Color(0xFF800080)),
-                                title: Text(obj.data, maxLines: 1, overflow: TextOverflow.ellipsis),
-                                subtitle: Text('Start: ${obj.startTime.inSeconds}s'),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.remove_circle_outline, size: 20),
-                                      onPressed: obj.duration.inSeconds > 1 ? () => provider.updateDuration(obj.id, obj.duration.inSeconds - 1) : null,
-                                    ),
-                                    Text('${obj.duration.inSeconds}s', style: const TextStyle(fontWeight: FontWeight.bold)),
-                                    IconButton(
-                                      icon: const Icon(Icons.add_circle_outline, size: 20),
-                                      onPressed: () => provider.updateDuration(obj.id, obj.duration.inSeconds + 1),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete, color: Colors.redAccent, size: 20),
-                                      onPressed: () {
-                                        provider.selectObject(obj.id);
-                                        provider.deleteSelectedObject();
-                                      },
-                                    ),
-                                    const Icon(Icons.drag_handle, color: Colors.grey),
-                                  ],
-                                ),
-                                onTap: () => provider.selectObject(obj.id),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ),
+                  const Text("Color: "),
+                  ...[Colors.black, Colors.red, Colors.blue, Colors.purple].map((c) => GestureDetector(
+                    onTap: () => setState(() => selectedColor = c),
+                    child: Container(margin: const EdgeInsets.symmetric(horizontal: 4), width: 24, height: 24, color: c, child: selectedColor == c ? const Icon(Icons.check, size: 16, color: Colors.white) : null),
+                  )),
                 ],
               ),
-            ),
+              Slider(value: fontSize, min: 12, max: 100, onChanged: (v) => setState(() => fontSize = v)),
+            ],
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildToolBtn(BuildContext context, IconData icon, String label, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: const Color(0xFF800080)),
-            const SizedBox(height: 4),
-            Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            ElevatedButton(onPressed: () {
+              context.read<CanvasProvider>().addObject(CanvasObject(type: ObjectType.text, data: controller.text, color: selectedColor, fontSize: fontSize));
+              Navigator.pop(ctx);
+            }, child: const Text('Add')),
           ],
         ),
       ),
     );
   }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<CanvasProvider>();
+    final isPlaying = provider.isPlaying;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(provider.currentProjectName),
+        actions: [
+          IconButton(icon: const Icon(Icons.save), onPressed: () => provider.saveProject()),
+          IconButton(icon: const Icon(Icons.back_hand), onPressed: () => _showHandPicker(context)),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Scene Switcher (Top)
+          SizedBox(
+            height: 60,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: provider.scenes.length + 1,
+              itemBuilder: (context, i) {
+                if (i == provider.scenes.length) return IconButton(icon: const Icon(Icons.add_box), onPressed: () => provider.addScene());
+                return GestureDetector(
+                  onTap: () => provider.selectScene(i),
+                  child: Container(
+                    margin: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(color: provider.currentSceneIndex == i ? const Color(0xFF800080) : Colors.grey[300], borderRadius: BorderRadius.circular(20)),
+                    center: Text("Slide ${i + 1}", style: TextStyle(color: provider.currentSceneIndex == i ? Colors.white : Colors.black)),
+                  ),
+                );
+              },
+            ),
+          ),
+          // Canvas Area
+          Expanded(
+            child: Center(
+              child: AspectRatio(
+                aspectRatio: provider.resolution.width / provider.resolution.height,
+                child: Container(
+                  color: provider.currentScene.backgroundColor,
+                  child: Stack(
+                    children: provider.currentScene.objects.map((obj) => Positioned(
+                      left: obj.x, top: obj.y,
+                      child: GestureDetector(
+                        onPanUpdate: (d) => provider.updateObjectPosition(obj.id, d.delta.dx, d.delta.dy),
+                        child: AnimatedDrawingWidget(object: obj, isPlaying: isPlaying, handIndex: provider.selectedHandIndex),
+                      ),
+                    )).toList(),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // Bottom Toolbar
+          Container(
+            height: 100,
+            color: Colors.white,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _toolIcon(Icons.text_fields, "Text", () => _showTextDialog(context)),
+                _toolIcon(Icons.image, "Image", () async {
+                  FilePickerResult? r = await FilePicker.platform.pickFiles(type: FileType.image);
+                  if (r != null) provider.addObject(CanvasObject(type: ObjectType.image, data: r.files.single.path!));
+                }),
+                _toolIcon(Icons.palette, "BG Color", () => provider.updateSceneColor(Colors.blue[100]!)),
+                FloatingActionButton(onPressed: () => provider.togglePlay(), child: Icon(isPlaying ? Icons.stop : Icons.play_arrow)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showHandPicker(BuildContext context) {
+    showModalBottomSheet(context: context, builder: (ctx) => Container(
+      height: 200,
+      child: GridView.builder(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 5),
+        itemCount: 5,
+        itemBuilder: (context, i) => InkWell(
+          onTap: () { context.read<CanvasProvider>().setHand(i); Navigator.pop(ctx); },
+          child: Center(child: Text(['✍🏽', '🖐🏿', '🖊️', '🖌️', '🖍️'][i], style: const TextStyle(fontSize: 40))),
+        ),
+      ),
+    ));
+  }
+
+  Widget _toolIcon(IconData icon, String label, VoidCallback tap) => InkWell(onTap: tap, child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(icon), Text(label, style: const TextStyle(fontSize: 10))]));
 }
