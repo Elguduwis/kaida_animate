@@ -16,17 +16,32 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    # STRICT ENVIRONMENT LOCK:
-    # Compiling with Flutter 3.13.9 natively forces AGP 7.x.
-    # This prevents the AGP 8 "namespace" build failure for ffmpeg 5.1.0.
+    # 1. Use the absolute latest stable Flutter to solve the path_provider SDK 34 issue
     - uses: subosito/flutter-action@v2
       with:
-        flutter-version: '3.13.9'
         channel: 'stable'
 
     - run: flutter create --platforms=android .
 
     - run: flutter pub get
+
+    # 2. Set Android SDK 24 requirement natively via local.properties
+    - run: echo "flutter.minSdkVersion=24" >> android/local.properties
+
+    # 3. THE DEFINITIVE FFMPEG FIX: Inject properties into ALL subprojects
+    # This overcomes the Gradle 'hasProperty' scope limitation that caused all previous failures.
+    - run: |
+        if [ -f android/build.gradle ]; then
+          echo "subprojects {" >> android/build.gradle
+          echo "    ext.ffmpegKitPackage = 'min-gpl'" >> android/build.gradle
+          echo "    ext.ffmpegKitVersion = '6.0'" >> android/build.gradle
+          echo "}" >> android/build.gradle
+        elif [ -f android/build.gradle.kts ]; then
+          echo "subprojects {" >> android/build.gradle.kts
+          echo "    extra[\"ffmpegKitPackage\"] = \"min-gpl\"" >> android/build.gradle.kts
+          echo "    extra[\"ffmpegKitVersion\"] = \"6.0\"" >> android/build.gradle.kts
+          echo "}" >> android/build.gradle.kts
+        fi
 
     - run: flutter build apk --release
 

@@ -3,7 +3,7 @@ description: KAIDA Animate MVP - Educational Whiteboard Videos
 publish_to: "none"
 
 environment:
-  sdk: ">=3.1.0 <4.0.0"
+  sdk: ">=3.2.0 <4.0.0"
 
 dependencies:
   flutter:
@@ -12,8 +12,8 @@ dependencies:
   provider: ^6.1.2
   uuid: ^4.3.3
   path_provider: ^2.1.2
-  # Locked strictly to 5.1.0. This version's artifacts exist 100% on Maven Central.
-  ffmpeg_kit_flutter_min_gpl: 5.1.0
+  # Using the main package. We will force the lightweight artifact in Gradle.
+  ffmpeg_kit_flutter: ^6.0.3
 
 dev_dependencies:
   flutter_test:
