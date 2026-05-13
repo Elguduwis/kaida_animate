@@ -22,19 +22,19 @@ class ExportService {
         if (endTime > totalDuration) totalDuration = endTime;
       }
       
-      totalDuration += 1.0; // 1 second padding at the end
+      totalDuration += 1.0; 
       final int totalFrames = (totalDuration * fps).toInt();
 
-      // 1. Initialize the Native Hardware Encoder
+      // FIX: Added the missing required profileLevel parameter
       await FlutterQuickVideoEncoder.setup(
         width: videoSize.width.toInt(),
         height: videoSize.height.toInt(),
         fps: fps,
         videoBitrate: 2500000,
+        profileLevel: ProfileLevel.any,
         filepath: outputPath,
       );
 
-      // 2. Generate and Append Frames Natively
       for (int i = 0; i < totalFrames; i++) {
         double currentTime = i / fps;
         onProgress(i / totalFrames);
@@ -96,16 +96,13 @@ class ExportService {
         final picture = recorder.endRecording();
         final image = await picture.toImage(videoSize.width.toInt(), videoSize.height.toInt());
         
-        // Extract raw RGBA pixels
         final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
         if (byteData != null) {
           final rgbaList = byteData.buffer.asUint8List();
-          // Directly append to the MP4 file
           await FlutterQuickVideoEncoder.appendVideoFrame(rgbaList);
         }
       }
 
-      // 3. Finalize MP4 File
       await FlutterQuickVideoEncoder.finish();
       onProgress(1.0);
       

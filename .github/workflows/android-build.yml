@@ -16,19 +16,18 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    # Use the absolute latest, stable Flutter
     - uses: subosito/flutter-action@v2
       with:
         channel: 'stable'
 
     - run: flutter create --platforms=android .
 
-    # Safely force Android SDK 34 to satisfy path_provider's latest requirements
+    # FIX: Bump SDK to 35 to satisfy the latest jni plugin requirements
     - run: |
         if [ -f android/app/build.gradle ]; then
-          sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 34/g' android/app/build.gradle
+          sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 35/g' android/app/build.gradle
         elif [ -f android/app/build.gradle.kts ]; then
-          sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 34/g' android/app/build.gradle.kts
+          sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 35/g' android/app/build.gradle.kts
         fi
 
     - run: flutter pub get
