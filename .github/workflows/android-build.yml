@@ -22,7 +22,13 @@ jobs:
 
     - run: flutter create --platforms=android .
 
-    # Force SDK 24 for FFmpeg - Supports both Groovy and Kotlin DSL formats
+    # 1. Official FFmpeg configuration to bypass the missing 6.0-2 Maven artifact
+    # We force Gradle to pull the stable 6.0 version and use the lightweight min-gpl package.
+    - run: |
+        echo "ffmpegKitPackage=min-gpl" >> android/gradle.properties
+        echo "ffmpegKitVersion=6.0" >> android/gradle.properties
+
+    # 2. Force Android SDK 24 requirement for FFmpeg compatibility (Supports both Gradle DSLs)
     - run: |
         if [ -f android/app/build.gradle ]; then
           sed -i 's/flutter.minSdkVersion/24/g' android/app/build.gradle
