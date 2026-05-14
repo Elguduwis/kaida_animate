@@ -35,6 +35,7 @@ class CanvasProvider extends ChangeNotifier {
   void selectScene(int index) { _currentSceneIndex = index; _selectedObjectId = null; notifyListeners(); }
   void addScene() { _scenes.add(Scene()); _currentSceneIndex = _scenes.length - 1; notifyListeners(); }
   void setHand(int index) { _selectedHandIndex = index; notifyListeners(); }
+  void updateSceneColor(Color color) { currentScene.backgroundColor = color; notifyListeners(); }
 
   void addObject(CanvasObject obj) {
     currentScene.objects.add(obj);
@@ -51,7 +52,14 @@ class CanvasProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Benime-Style Timing Adjustments
+  void reorderObjects(int oldIdx, int newIdx) {
+    if (oldIdx < newIdx) newIdx -= 1;
+    final obj = currentScene.objects.removeAt(oldIdx);
+    currentScene.objects.insert(newIdx, obj);
+    _recalculateTimestamps();
+    notifyListeners();
+  }
+
   void updateObjectTiming(String id, {double? delay, double? duration, double? pause}) {
     final obj = currentScene.objects.firstWhere((o) => o.id == id);
     if (delay != null) obj.delay = delay;
@@ -92,5 +100,54 @@ class CanvasProvider extends ChangeNotifier {
   Future<void> pickAudio() async {
     FilePickerResult? r = await FilePicker.platform.pickFiles(type: FileType.audio);
     if (r != null) { _audioPath = r.files.single.path; _audioFileName = r.files.single.name; notifyListeners(); }
+  }
+  
+  void removeAudioTrack() {
+    _audioPath = null;
+    _audioFileName = null;
+    _audioPlayer.stop();
+    notifyListeners();
+  }
+
+  // --- THE RESTORED PERSISTENCE ENGINE ---
+
+  Future<void> saveProject() async {
+    final prefs = await SharedPreferences.getInstance();
+    Map<String, dynamic> data = {
+      'name': _currentProjectName,
+      'width': _resolution.width,
+      'height': _resolution.height,
+      'handIndex': _selectedHandIndex,
+      'audioPath': _audioPath,
+      'scenes': _scenes.map((s) => s.toJson()).toList(),
+    };
+    await prefs.setString('project_$_currentProjectName', jsonEncode(data));
+  }
+
+  Future<void> loadProject(String name) async {
+    final prefs = await SharedPreferences.getInstance();
+    String? raw = prefs.getString('project_$name');
+    if (raw != null) {
+      Map<String, dynamic> d = jsonDecode(raw);
+      _currentProjectName = d['name'];
+      _resolution = Size(d['width'], d['height']);
+      _selectedHandIndex = d['handIndex'] ?? 0;
+      _audioPath = d['audioPath'];
+      _scenes = (d['scenes'] as List).map((s) => Scene.fromJson(s)).toList();
+      _currentSceneIndex = 0;
+      _recalculateTimestamps();
+      notifyListeners();
+    }
+  }
+
+  void clearWorkspace() {
+    _scenes = [Scene()];
+    _currentSceneIndex = 0;
+    _selectedObjectId = null;
+    _audioPath = null;
+    _audioFileName = null;
+    _audioPlayer.stop();
+    _currentProjectName = "New Project ${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}";
+    notifyListeners();
   }
 }
