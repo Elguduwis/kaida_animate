@@ -102,23 +102,14 @@ class CanvasProvider extends ChangeNotifier {
     if (r != null) { _audioPath = r.files.single.path; _audioFileName = r.files.single.name; notifyListeners(); }
   }
   
-  void removeAudioTrack() {
-    _audioPath = null;
-    _audioFileName = null;
-    _audioPlayer.stop();
-    notifyListeners();
-  }
-
-  // --- THE RESTORED PERSISTENCE ENGINE ---
+  void removeAudioTrack() { _audioPath = null; _audioFileName = null; _audioPlayer.stop(); notifyListeners(); }
 
   Future<void> saveProject() async {
     final prefs = await SharedPreferences.getInstance();
     Map<String, dynamic> data = {
       'name': _currentProjectName,
-      'width': _resolution.width,
-      'height': _resolution.height,
-      'handIndex': _selectedHandIndex,
-      'audioPath': _audioPath,
+      'width': _resolution.width, 'height': _resolution.height,
+      'handIndex': _selectedHandIndex, 'audioPath': _audioPath,
       'scenes': _scenes.map((s) => s.toJson()).toList(),
     };
     await prefs.setString('project_$_currentProjectName', jsonEncode(data));
@@ -128,12 +119,20 @@ class CanvasProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     String? raw = prefs.getString('project_$name');
     if (raw != null) {
-      Map<String, dynamic> d = jsonDecode(raw);
-      _currentProjectName = d['name'];
-      _resolution = Size(d['width'], d['height']);
-      _selectedHandIndex = d['handIndex'] ?? 0;
-      _audioPath = d['audioPath'];
-      _scenes = (d['scenes'] as List).map((s) => Scene.fromJson(s)).toList();
+      try {
+        Map<String, dynamic> d = jsonDecode(raw);
+        _currentProjectName = d['name'];
+        _resolution = Size(d['width'] ?? 1280, d['height'] ?? 720);
+        _selectedHandIndex = d['handIndex'] ?? 0;
+        _audioPath = d['audioPath'];
+        _scenes = (d['scenes'] as List).map((s) => Scene.fromJson(s)).toList();
+      } catch (e) {
+        // LEGACY SAVE FALLBACK: Prevents the app from crashing on older projects
+        List<dynamic> list = jsonDecode(raw);
+        _scenes = [Scene(objects: list.map((e) => CanvasObject.fromJson(e)).toList())];
+        _currentProjectName = name;
+        _resolution = const Size(1280, 720);
+      }
       _currentSceneIndex = 0;
       _recalculateTimestamps();
       notifyListeners();
@@ -144,8 +143,7 @@ class CanvasProvider extends ChangeNotifier {
     _scenes = [Scene()];
     _currentSceneIndex = 0;
     _selectedObjectId = null;
-    _audioPath = null;
-    _audioFileName = null;
+    _audioPath = null; _audioFileName = null;
     _audioPlayer.stop();
     _currentProjectName = "New Project ${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}";
     notifyListeners();
