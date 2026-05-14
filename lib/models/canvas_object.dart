@@ -6,16 +6,20 @@ enum ObjectType { text, image, drawing }
 class CanvasObject {
   final String id;
   final ObjectType type;
-  String data; // Text content or file path
+  String data; 
   Path? pathData; 
   double x;
   double y;
   double width;
   double height;
-  Duration startTime;
-  Duration duration;
   
-  // Style Properties
+  // Advanced Timing (Matching Benime UI)
+  double delay;     // Seconds before animation starts
+  double duration;  // Seconds the animation takes
+  double pause;     // Seconds to wait after animation finishes
+  
+  Duration startTime; // Calculated automatically
+  
   Color color;
   double fontSize;
 
@@ -28,10 +32,12 @@ class CanvasObject {
     this.y = 50.0,
     this.width = 200.0,
     this.height = 100.0,
+    this.delay = 0.0,
+    this.duration = 2.0,
+    this.pause = 0.0,
     this.startTime = Duration.zero,
-    this.duration = const Duration(seconds: 3),
     this.color = Colors.black,
-    this.fontSize = 24.0,
+    this.fontSize = 40.0,
   }) : id = id ?? const Uuid().v4();
 
   Map<String, dynamic> toJson() => {
@@ -42,8 +48,9 @@ class CanvasObject {
         'y': y,
         'width': width,
         'height': height,
-        'startTime': startTime.inMilliseconds,
-        'duration': duration.inMilliseconds,
+        'delay': delay,
+        'duration': duration,
+        'pause': pause,
         'color': color.value,
         'fontSize': fontSize,
       };
@@ -58,10 +65,11 @@ class CanvasObject {
       y: json['y'],
       width: json['width'],
       height: json['height'],
-      startTime: Duration(milliseconds: json['startTime']),
-      duration: Duration(milliseconds: json['duration']),
+      delay: (json['delay'] ?? 0.0).toDouble(),
+      duration: (json['duration'] ?? 2.0).toDouble(),
+      pause: (json['pause'] ?? 0.0).toDouble(),
       color: Color(json['color'] ?? Colors.black.value),
-      fontSize: (json['fontSize'] ?? 24.0).toDouble(),
+      fontSize: (json['fontSize'] ?? 40.0).toDouble(),
     );
   }
 }
